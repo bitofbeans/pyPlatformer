@@ -2,8 +2,10 @@
 import pygame
 from pygame.locals import *
 
-# initialize
+# initialize and set clock
 pygame.init()
+clock = pygame.time.Clock()
+fps = 60
 
 # global constants
 screenWidth = 1000
@@ -11,27 +13,81 @@ screenHeight = 1000
 BLACK = (0,0,0)
 WHITE = (255,255,255)
 
-# create window
-screen = pygame.display.set_mode((screenWidth,screenHeight))
-pygame.display.set_caption('Platformer')
-
 # game variables
 tile_size = 50
+
+# create game window
+screen = pygame.display.set_mode((screenWidth,screenHeight))
+pygame.display.set_caption('Platformer')
 
 # image imports
 sun_img = pygame.image.load('img/sun.png')
 sun_img = pygame.transform.scale(sun_img, (75, 75))
 bg_img = pygame.image.load('img/sky.png')
+bg_img = pygame.transform.scale(bg_img, (screenWidth, screenWidth))
 
-# draw grid for entire map
-def drawGrid():
-  for line in range(0,int((screenWidth/tile_size)+1)):
-      lineLen = line * tile_size
-      pygame.draw.line(screen,WHITE,(0, lineLen), (screenWidth, lineLen))
-      pygame.draw.line(screen,WHITE,(lineLen, 0), (lineLen, screenHeight))
-      
+# --- PLAYER SPRITE
+class Player():
+    def __init__(self,x,y):
+        # load player image, scale it, get dimensions
+        self.images_right = []
+        self.index = 0
+        self.counter = 0
+        img = pygame.image.load('img/guy.png')
+        self.image = pygame.transform.scale(img,(tile_size,tile_size))
+        self.rect = self.image.get_rect()
+        
+        # set pos to x and y
+        self.rect.x = x
+        self.rect.y = y
+        self.velY = 0
+        self.jumped = False
+        
+        
+    def update(self):
+        
+        # set delta x/y
+        dx = 0
+        dy = 0
+        
+        # get keys
+        key = pygame.key.get_pressed()
+         
+        # move player if keys pressed
+        if key[pygame.K_UP] and self.jumped == False:
+            self.velY = -15
+            self.jumped = True
+        elif key[pygame.K_UP] == False: self.jumped = False
+        if key[pygame.K_LEFT]:
+            dx -= 5  
+        elif key[pygame.K_RIGHT]:
+            dx += 5
+        
+        # gravity
+        self.velY += 1
+        if self.velY > 10: self.velY = 10
+        dy += self.velY
+        
+        # check for collision
+        
+        # update player position
+        self.rect.x += dx
+        self.rect.y += dy
+        if self.rect.bottom > screenHeight:
+          self.rect.bottom = screenHeight
+        
+        
+        # load player image
+        img = pygame.image.load('img/guy.png')
+        
+        # scale player
+        self.image = pygame.transform.scale(img,(tile_size,tile_size))
+        
+        # render player
+        screen.blit(self.image, self.rect)
 
-# define world
+
+# --- WORLD SPRITE
 class World():
     def __init__(self,data):
       # clear list
@@ -63,8 +119,9 @@ class World():
           row_count += 1
         
     def draw(self):
+        # for every tile,
         for tile in self.tile_list:
-           # draw each tile
+            # draw each tile
            screen.blit(tile[0],tile[1])
 
 # set world data
@@ -90,31 +147,36 @@ world_data =[
 [1, 0, 0, 0, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 
 [1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ]
-# create world sprite from data
+
+# --- create sprites
+player = Player(100, screenHeight - tile_size*2)
 world = World(world_data)
+
 
 # --- game loop
 run = True
 while run:
+    # --- tick fps
+    clock.tick(fps)
     
     # escape condition
     for event in pygame.event.get():
       if event.type == pygame.QUIT:
         run = False
     
-    # --- render
+    # --- game logic
+     #render bg
     screen.blit(bg_img,(0,0))
     screen.blit(sun_img,(100,100))
+     #draw tiles
     world.draw()
-    drawGrid()
+     #player movement and rendering
+    player.update()
     
-    # update display
+    # --- update display
     pygame.display.update()
     
-    
-      
-    
-    
-    
-    
+
+ 
+# end   
 pygame.quit()
