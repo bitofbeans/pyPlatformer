@@ -29,26 +29,35 @@ bg_img = pygame.transform.scale(bg_img, (screenWidth, screenWidth))
 # --- PLAYER SPRITE
 class Player():
     def __init__(self,x,y):
-        # load player image, scale it, get dimensions
+        # animation variables
         self.images_right = []
+        self.images_left = []
         self.index = 0
         self.counter = 0
-        img = pygame.image.load('img/guy.png')
-        self.image = pygame.transform.scale(img,(tile_size,tile_size))
+        for num in range(1,6):
+            print(f'img/guy{num}.png')
+            img_right = pygame.image.load(f'img/guy{num}.png')
+            img_right = pygame.transform.scale(img_right,(tile_size,tile_size))
+            img_left = pygame.transform.flip(img_right, True, False)
+            self.images_right.append(img_right)
+            self.images_left.append(img_left)
+        # load player image, scale it, get dimensions
+        self.image = self.images_right[self.index]
         self.rect = self.image.get_rect()
-        
         # set pos to x and y
+        # set jump variables
         self.rect.x = x
         self.rect.y = y
         self.velY = 0
         self.jumped = False
+        self.direction = 0
         
         
     def update(self):
-        
         # set delta x/y
         dx = 0
         dy = 0
+        walk_cool = 5
         
         # get keys
         key = pygame.key.get_pressed()
@@ -60,8 +69,29 @@ class Player():
         elif key[pygame.K_UP] == False: self.jumped = False
         if key[pygame.K_LEFT]:
             dx -= 5  
-        elif key[pygame.K_RIGHT]:
+            self.counter += 1
+            self.direction = -1
+        if key[pygame.K_RIGHT]:
             dx += 5
+            self.counter += 1
+            self.direction = 1
+        if key[pygame.K_LEFT] == False and key[pygame.K_RIGHT] == False:
+            self.counter = 0
+            self.index = 0
+            if self.direction == 1:
+                self.image = self.images_right[self.index]
+            if self.direction == -1:
+                self.image = self.images_left[self.index]
+            
+        
+        # handle animation
+        if self.counter > walk_cool:
+            self.counter = 0
+            self.index = ((self.index) % 4)+1
+            if self.direction == 1:
+                self.image = self.images_right[self.index]
+            if self.direction == -1:
+                self.image = self.images_left[self.index]
         
         # gravity
         self.velY += 1
@@ -75,13 +105,6 @@ class Player():
         self.rect.y += dy
         if self.rect.bottom > screenHeight:
           self.rect.bottom = screenHeight
-        
-        
-        # load player image
-        img = pygame.image.load('img/guy.png')
-        
-        # scale player
-        self.image = pygame.transform.scale(img,(tile_size,tile_size))
         
         # render player
         screen.blit(self.image, self.rect)
