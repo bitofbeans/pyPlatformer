@@ -8,8 +8,15 @@ clock = pygame.time.Clock()
 fps = 60
 
 # global constants
+hideUnknownTiles = True # when true, it hides the tiles that it can not recognize
 screenWidth = 1000
 screenHeight = 1000
+playerWidth = 20
+playerHeight = 50
+gravity = 1
+fallMax = 15
+jumpPower = -13
+
 BLACK = (0,0,0)
 WHITE = (255,255,255)
 
@@ -22,14 +29,14 @@ pygame.display.set_caption('Platformer')
 
 # image imports
 sun_img = pygame.image.load('img/sun.png')
-sun_img = pygame.transform.scale(sun_img, (75, 75))
+sun_img = pygame.transform.scale(sun_img, (125, 125))
 bg_img = pygame.image.load('img/sky.png')
-bg_img = pygame.transform.scale(bg_img, (screenWidth, screenWidth))
+# bg_img = pygame.transform.scale(bg_img, (screenWidth, screenWidth))
 
 # --- PLAYER SPRITE
 class Player():
     def __init__(self,x,y):
-        # animation variables
+        # load animation frames
         self.images_right = []
         self.images_left = []
         self.index = 0
@@ -41,32 +48,38 @@ class Player():
             img_left = pygame.transform.flip(img_right, True, False)
             self.images_right.append(img_right)
             self.images_left.append(img_left)
-        # load player image, scale it, get dimensions
+        # create player hitbox
         self.image = self.images_right[self.index]
         self.rect = self.image.get_rect()
-        # set pos to x and y
-        # set jump variables
+        self.collideRect =  pygame.rect.Rect((x, y), (playerWidth, playerHeight))
+        self.collideRect.midbottom = self.rect.midbottom
+        # set variables
         self.rect.x = x
         self.rect.y = y
+        self.c_width = playerWidth
+        self.c_height = playerHeight
         self.velY = 0
-        self.jumped = False
+        self.jumped = 0
         self.direction = 0
-        
+        self.airtime = 0
         
     def update(self):
         # set delta x/y
         dx = 0
         dy = 0
-        walk_cool = 5
+        walk_cool = 4
         
         # get keys
         key = pygame.key.get_pressed()
-         
+        
         # move player if keys pressed
-        if key[pygame.K_UP] and self.jumped == False:
-            self.velY = -15
-            self.jumped = True
-        elif key[pygame.K_UP] == False: self.jumped = False
+        if key[pygame.K_UP] and self.jumped == 0:
+            self.jumped = 1
+        if key[pygame.K_UP] and 1 <= self.jumped <= 6 and self.airtime < 6:
+            self.velY = jumpPower
+            self.jumped += 1
+        elif key[pygame.K_UP] == False: self.jumped = 0
+        
         if key[pygame.K_LEFT]:
             dx -= 5  
             self.counter += 1
@@ -75,7 +88,7 @@ class Player():
             dx += 5
             self.counter += 1
             self.direction = 1
-        if key[pygame.K_LEFT] == False and key[pygame.K_RIGHT] == False:
+        if (key[pygame.K_RIGHT]-key[pygame.K_LEFT]) == 0 or self.airtime != 0:
             self.counter = 0
             self.index = 0
             if self.direction == 1:
@@ -83,7 +96,6 @@ class Player():
             if self.direction == -1:
                 self.image = self.images_left[self.index]
             
-        
         # handle animation
         if self.counter > walk_cool:
             self.counter = 0
@@ -94,20 +106,41 @@ class Player():
                 self.image = self.images_left[self.index]
         
         # gravity
-        self.velY += 1
-        if self.velY > 10: self.velY = 10
+        self.velY += gravity
+        if self.velY > fallMax: self.velY = fallMax
         dy += self.velY
         
         # check for collision
+        self.airtime += 1
+        for tile in world.tile_list:
+            # check for collision in x direction
+            if tile[1].colliderect(self.collideRect.x + dx, self.collideRect.y, self.c_width, self.c_height):
+                dx = 0
+            # check for collision in y direction
+            if tile[1].colliderect(self.collideRect.x, self.collideRect.y + dy, self.c_width, self.c_height):
+                # check if above the ground/ if falling
+                if self.velY >= 0:
+                    dy = tile[1].top - self.collideRect.bottom
+                # check if below the ground/ if jumping
+                elif self.velY < 0:
+                    dy = tile[1].bottom - self.collideRect.top
+                self.velY = 0
+                self.airtime = 0
         
         # update player position
         self.rect.x += dx
         self.rect.y += dy
         if self.rect.bottom > screenHeight:
           self.rect.bottom = screenHeight
-        
+    
+        # position hitbox
+        self.collideRect.midbottom = self.rect.midbottom
+          
         # render player
         screen.blit(self.image, self.rect)
+        
+        # RENDER HITBOX
+        # pygame.draw.rect(screen,(255,0,0),self.collideRect,2)
 
 
 # --- WORLD SPRITE
@@ -131,7 +164,12 @@ class World():
                       img = pygame.transform.scale(dirt_img,(tile_size,tile_size))
                   elif tile == 2:
                       img = pygame.transform.scale(grass_img,(tile_size,tile_size))
-                  else: img = pygame.transform.scale(err,(tile_size,tile_size))
+                  else: 
+                      img = pygame.transform.scale(err,(tile_size,tile_size))
+                      global hideUnknownTiles
+                      if hideUnknownTiles == True:
+                        col_count += 1
+                        continue
 
                   img_rect = img.get_rect()
                   img_rect.x = col_count * tile_size
@@ -146,6 +184,9 @@ class World():
         for tile in self.tile_list:
             # draw each tile
            screen.blit(tile[0],tile[1])
+           
+           # RENDER HITBOX
+           # pygame.draw.rect(screen,WHITE,tile[1],2)
 
 # set world data
 world_data =[
@@ -175,7 +216,6 @@ world_data =[
 player = Player(100, screenHeight - tile_size*2)
 world = World(world_data)
 
-
 # --- game loop
 run = True
 while run:
@@ -200,6 +240,7 @@ while run:
     pygame.display.update()
     
 
+ 
  
 # end   
 pygame.quit()
