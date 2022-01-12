@@ -13,9 +13,11 @@ screenWidth = 1000
 screenHeight = 1000
 playerWidth = 20
 playerHeight = 50
-gravity = 1
+gravity = 0.8
 fallMax = 15
-jumpPower = -13
+jumpPower = -10
+moveSpeed = 1.5
+friction = 0.8
 
 BLACK = (0,0,0)
 WHITE = (255,255,255)
@@ -58,6 +60,7 @@ class Player():
         self.rect.y = y
         self.c_width = playerWidth
         self.c_height = playerHeight
+        self.velX = 0
         self.velY = 0
         self.jumped = 0
         self.direction = 0
@@ -75,17 +78,17 @@ class Player():
         # move player if keys pressed
         if key[pygame.K_UP] and self.jumped == 0:
             self.jumped = 1
+        elif key[pygame.K_UP]: self.jumped += 1
         if key[pygame.K_UP] and 1 <= self.jumped <= 6 and self.airtime < 6:
             self.velY = jumpPower
-            self.jumped += 1
         elif key[pygame.K_UP] == False: self.jumped = 0
         
         if key[pygame.K_LEFT]:
-            dx -= 5  
+            self.velX -= moveSpeed
             self.counter += 1
             self.direction = -1
         if key[pygame.K_RIGHT]:
-            dx += 5
+            self.velX += moveSpeed
             self.counter += 1
             self.direction = 1
         if (key[pygame.K_RIGHT]-key[pygame.K_LEFT]) == 0 or self.airtime != 0:
@@ -96,6 +99,9 @@ class Player():
             if self.direction == -1:
                 self.image = self.images_left[self.index]
             
+        self.velX *= friction
+        dx += int(self.velX)
+        
         # handle animation
         if self.counter > walk_cool:
             self.counter = 0
@@ -115,7 +121,11 @@ class Player():
         for tile in world.tile_list:
             # check for collision in x direction
             if tile[1].colliderect(self.collideRect.x + dx, self.collideRect.y, self.c_width, self.c_height):
-                dx = 0
+                if self.velX >= 0:
+                    dx = tile[1].left - self.collideRect.right
+                # check if below the ground/ if jumping
+                elif self.velX < 0:
+                    dx = tile[1].right - self.collideRect.left
             # check for collision in y direction
             if tile[1].colliderect(self.collideRect.x, self.collideRect.y + dy, self.c_width, self.c_height):
                 # check if above the ground/ if falling
