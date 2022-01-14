@@ -1,21 +1,21 @@
-# imports
+# Import Pygame
 import pygame
 #from pygame.locals import *
 
-# initialize and set clock
+# Initialize pygame and create clock
 pygame.init()
 clock = pygame.time.Clock()
 fps = 60
 
-# game variables
+# Game Variables
 tile_size = 50
 
-# global constants
-hideUnknownTiles = False # when true, it hides the tiles that it can not recognize
+# Global Constants
+hideUnknownTiles = True # When true, it hides the tiles that it can not recognize
 screenWidth = 1000
 screenHeight = 1000
 
-# player variables
+# Player Variables
 playerWidth = tile_size-30
 playerHeight = tile_size-15
 gravity = 0.8
@@ -24,20 +24,22 @@ jumpPower = -10
 moveSpeed = 1.5
 friction = 0.8
 
-# color definitions
+# Color Definitions
 BLACK = (0,0,0)
 WHITE = (255,255,255)
 
-# create game window
+# Create game window
 screen = pygame.display.set_mode((screenWidth,screenHeight))
 pygame.display.set_caption('Platformer')
 
-# image imports and data
+# Image imports and data
 sun_img = pygame.image.load('img/sun.png')
-sun_img = pygame.transform.scale(sun_img, (125, 125))
+sun_img = pygame.transform.scale(sun_img, (tile_size*2, tile_size*2))
 bg_img = pygame.image.load('img/sky.png')
- # bg_img = pygame.transform.scale(bg_img, (screenWidth, screenWidth))
-outline_img = pygame.image.load('img/outline.png')
+#bg_img = pygame.transform.scale(bg_img, (950+tile_size*2, 950+tile_size*2 ))
+
+# Import outline image and outline data
+outline_img = pygame.image.load('img/tile/outline.png')
 pixelRes= outline_img.get_width()
 scaler = (tile_size / pixelRes)+0.1
 outline_img = pygame.transform.scale(outline_img,((pixelRes+2)*scaler,(pixelRes+2)*scaler))
@@ -47,20 +49,21 @@ scaler -=0.2
 class Player():
          
     def __init__(self,x,y):
-        # create animation variables
+        # Create animation variables
         self.images_right = []
         self.images_left = []
         self.frame = 0
         self.counter = 0
         
-        # load animation frames
+        # Load animation frames function
         def imgLoad(img):
-                img_right = pygame.image.load('img/'+ img +'.png')
+                img_right = pygame.image.load('img/player/'+ img +'.png')
                 img_right = pygame.transform.scale(img_right,(tile_size*0.75,tile_size*0.75))
                 img_left = pygame.transform.flip(img_right, True, False)
                 self.images_right.append(img_right)
                 self.images_left.append(img_left)
-                
+        
+        # Load all frames
         imgLoad('idle0')
         imgLoad('idle1')
         imgLoad('run0')
@@ -68,13 +71,13 @@ class Player():
         imgLoad('air0')
         imgLoad('air1')
         
-        # create player hitbox
+        # Create player hitbox
         self.image = self.images_right[self.frame]
         self.rect = self.image.get_rect()
         self.collideRect =  pygame.rect.Rect((x, y), (playerWidth, playerHeight))
         self.collideRect.midbottom = self.rect.midbottom
         
-        # set variables
+        # Set Position and variables
         self.rect.x = x
         self.rect.y = y
         self.c_width = playerWidth
@@ -86,23 +89,23 @@ class Player():
         self.airtime = 0
 
     def update(self):
-        # set delta x/y
+        # Set delta x/y
         dx = 0
         dy = 0
         
-        # get keys pressed
+        # Get keys pressed
         key = pygame.key.get_pressed()
         
-        # --- move player if keys pressed
-         # y axis
+        # --- Move player if keys pressed
+         # Y axis
         if key[pygame.K_UP] and self.jumped == 0:
             self.jumped = 1
         elif key[pygame.K_UP]: self.jumped += 1
         if key[pygame.K_UP] and 1 <= self.jumped <= 6 and self.airtime < 6:
             self.velY = jumpPower
-        elif key[pygame.K_UP] == False: self.jumped = 0
+        if key[pygame.K_UP] == False: self.jumped = 0
     
-        # x axis
+        # X axis
         if key[pygame.K_LEFT]:
             self.velX -= moveSpeed
             self.direction = -1
@@ -111,11 +114,12 @@ class Player():
             self.velX += moveSpeed
             self.direction = 1
             self.frame += 0.07
-        # change x by velocity
+        # Change X by velocity
         self.velX *= friction
         dx += int(self.velX)
         
-        # handle animation
+        # Handle animation
+             # animation frames
          #### idle = 0,1
          #### run = 2,3
          #### air = 4,5
@@ -193,10 +197,10 @@ class World():
       self.tile_list = []
       
       # load images
-      self.tileTypes = [1,2]
-      dirt_img = pygame.image.load('img/dirt.png')
-      grass_img = pygame.image.load('img/grass.png')
-      err = pygame.image.load('img/unknown.png')
+      self.tileTypes = [1,2,3]
+      dirt_img = pygame.image.load('img/tile/dirt.png')
+      grass_img = pygame.image.load('img/tile/grass.png')
+      err = pygame.image.load('img/tile/unknown.png')
       self.errorImg = err
       # extract tiles from data
       row_count = 0
@@ -208,6 +212,11 @@ class World():
                       img = pygame.transform.scale(dirt_img,(tile_size,tile_size))
                   elif tile == 2:
                       img = pygame.transform.scale(grass_img,(tile_size,tile_size))
+                  elif tile == 3:
+                      blob = Enemy(col_count * tile_size, row_count * tile_size)
+                      blob_group.add(blob)
+                      col_count += 1
+                      continue
                   else: 
                       # unknown tile
                       img = pygame.transform.scale(err,(tile_size,tile_size))
@@ -226,13 +235,13 @@ class World():
         
     def draw(self):
         for tile in self.tile_list:
-            # draw each tile
+            # draw each tiles outline
            tileImg = tile[2]
            if tileImg in self.tileTypes: # if not unknown image, draw outline
                 rect = tile[1]
                 screen.blit(outline_img,(rect.left-scaler, rect.top-scaler, rect.width, rect.height))
        
-
+       
         for tile in self.tile_list:
             # draw each tile
            screen.blit(tile[0],tile[1])
@@ -240,8 +249,56 @@ class World():
            # RENDER HITBOX
            # pygame.draw.rect(screen,WHITE,tile[1],2)
 
-           
-
+class Enemy(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        # inherit sprite constructor
+        pygame.sprite.Sprite.__init__(self)
+        
+        # add animation frames
+        self.images = []
+        for i in range(0,4):
+            img = pygame.image.load(f'img/enemy/blob{i}.png')
+            img = pygame.transform.scale(img,(tile_size,tile_size))
+            self.images.append(img)
+        self.image = self.images[0]
+        
+        # set position and create hitbox
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+        self.collideRect =  pygame.rect.Rect((x, y), (tile_size-15, tile_size-25))
+        self.collideRect.midbottom = self.rect.midbottom
+        
+        # variables
+        self.move_dir = 1
+        self.move_counter = 0
+        self.frame = 0
+        self.counter = 0
+        
+    def update(self):
+        #increment animation frame
+        self.frame += 0.1
+        self.counter = int(self.frame)
+        
+        # move enemy
+        self.rect.x += self.move_dir
+        self.move_counter += 1
+        if self.move_counter > 50:
+            # flip direction after 50 frames
+            self.move_dir *= -1
+            self.move_counter *= -1
+            
+        # update hitbox position
+        self.collideRect.midbottom = self.rect.midbottom   
+            
+        # animate
+        self.image = self.images[(self.counter % 4)]
+        # RENDER HITBOX
+        # pygame.draw.rect(screen,WHITE,self.collideRect,2)
+            
+        
+        
+        
 # set world data
 world_data =[
 [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 
@@ -268,6 +325,9 @@ world_data =[
 
 # --- create sprites
 player = Player(100, screenHeight - tile_size*2)
+
+blob_group = pygame.sprite.Group()
+
 world = World(world_data)
 
 # --- game loop
@@ -284,14 +344,17 @@ while run:
     # --- game logic
      #render bg
     screen.blit(bg_img,(0,0))
-    screen.blit(sun_img,(100,100))
+    screen.blit(sun_img,(tile_size*2,tile_size*2))
      #draw tiles
     world.draw()
+     #enemy logic
+    blob_group.draw(screen)
+    blob_group.update()
      #player movement and rendering
     player.update()
     
     # --- update display
     pygame.display.update()
-    
+
 # end   
 pygame.quit()
