@@ -1,5 +1,4 @@
 # Import Pygame
-from lib2to3.refactor import get_all_fix_names
 import pygame
 #from pygame.locals import *
 
@@ -76,7 +75,6 @@ class Player():
         # Create player hitbox
         self.image = self.images_right[self.frame]
         self.rect = pygame.rect.Rect(x, y, playerWidth, playerHeight)
-        print(self.rect.x)
         
         # Set Position and variables
         self.x = x
@@ -93,13 +91,14 @@ class Player():
         # Set delta x/y
         dx = 0
         dy = 0
-        
+        # if dead,
         if game_over != 0:
             
             # render player
             screen.blit(self.image, self.rect)
             return game_over
         
+        # if alive,
         # Get keys pressed
         key = pygame.key.get_pressed()
         
@@ -133,26 +132,40 @@ class Player():
         self.frame += 0.05
         self.counter = int(self.frame)
         
+        
         if self.airtime > 1:
+            #if in air
             if self.velY >= 0:
+                # and falling
                 if self.direction == 1:
+                    #right
                     self.image = self.images_right[5]
                 else:
+                    #left
                     self.image = self.images_left[5]
             else:
+                #and falling
                 if self.direction == 1:
+                    #right
                     self.image = self.images_right[4]
                 else:
+                    #left
                     self.image = self.images_left[4]
         elif (key[pygame.K_RIGHT]-key[pygame.K_LEFT]) != 0:
+            #if moving
             if self.direction == 1:
+                #right
                 self.image = self.images_right[(self.counter % 2)+2]
             else:
+                #left
                 self.image = self.images_left[(self.counter % 2)+2]
         else:
+            #idle
             if self.direction == 1:
+                #right
                 self.image = self.images_right[(self.counter % 2)]
             else:
+                #left
                 self.image = self.images_left[(self.counter % 2)]
 
         # gravity and change y by velocity
@@ -181,8 +194,19 @@ class Player():
                 self.velY = 0
         
         # check for collision with enemies
-        if pygame.sprite.spritecollide(self, blob_group, False):
-            game_over = -1
+         # returns all of the enemies we are touching
+        hits = pygame.sprite.spritecollide(self, blob_group, False)
+        # for each enemy we are touching,
+        for Enemy in hits:
+                # if the slime we are touching is living
+                if Enemy.alive:
+                    if self.velY < 3:
+                        # if we didnt jump on it, game over
+                        game_over = -1
+                    else:
+                        # if we jumped on top of it, kill the slime
+                        Enemy.die()
+            
             
         # check for collision with lava
         if pygame.sprite.spritecollide(self, lava_group, False):
@@ -195,11 +219,13 @@ class Player():
         self.rect = pygame.rect.Rect(self.x+(playerWidth/2), self.y, playerWidth, playerHeight)
           
         # render player
-        screen.blit(self.image, (self.x,self.y))
+        screen.blit(self.image, (self.x,self.y-3))
         
         # RENDER HITBOX
         #pygame.draw.rect(screen,(255,0,0),self.rect,2)
         #pygame.draw.rect(screen,WHITE,self.rect,2)
+        
+        # return the game over variable and feed it back in
         return game_over
 
 
@@ -286,7 +312,7 @@ class Enemy(pygame.sprite.Sprite):
         # add animation frames
         self.images = []
         for i in range(0,4):
-            img = pygame.image.load(f'img/enemy/blob{i}.png')
+            img = pygame.image.load(f'img/enemy/blob{i}.png').convert()
             img = pygame.transform.scale(img,(tile_size,tile_size))
             self.images.append(img)
         self.image = self.images[0]
@@ -303,28 +329,41 @@ class Enemy(pygame.sprite.Sprite):
         self.move_counter = 0
         self.frame = 0
         self.counter = 0
+        self.alive = True
+        self.alpha = 255
+
+    def die(self):
+        # die
+        self.alive = False
         
-    def render(self):
-        screen.blit(self.image, (self.x,self.y+50))
     
     def update(self):
-        #increment animation frame
-        self.frame += 0.1
-        self.counter = int(self.frame)
-        
-        # move enemy
-        self.x += self.move_dir
-        self.move_counter += 1
-        if self.move_counter > 50:
-            # flip direction after 50 frames
-            self.move_dir *= -1
-            self.move_counter *= -1
-            
-        # update hitbox position
-        self.rect = (self.x+(15/2), self.y+tile_size-25, tile_size-15, tile_size-25)
-            
-        # animate
+        # animate image
         self.image = self.images[(self.counter % 4)]
+        if self.alive:
+            #increment animation frame
+            self.frame += 0.1
+            self.counter = int(self.frame)
+            
+            # move enemy
+            self.x += self.move_dir
+            self.move_counter += 1
+            if self.move_counter > 50:
+                # flip direction after 50 frames
+                self.move_dir *= -1
+                self.move_counter *= -1
+                
+            # update hitbox position
+            self.rect = (self.x+(15/2), self.y+tile_size-25, tile_size-15, tile_size-25)
+        else:
+            # slowly fade out
+            self.image.set_alpha(self.alpha)
+            self.alpha -=15
+            if self.alpha >255:
+                # if we are faded out all the way, remove slime
+                blob_group.remove(self)
+
+        # render inside the update function for more control
         screen.blit(self.image, (self.x,self.y))
         
         # RENDER HITBOX
@@ -334,6 +373,7 @@ class Enemy(pygame.sprite.Sprite):
 ### --- LAVA SPRITE
 class Lava(pygame.sprite.Sprite):
         def __init__(self, x, y):
+            # use pygame sprite constructor
             pygame.sprite.Sprite.__init__(self)
         
             # add animation frames
@@ -354,10 +394,15 @@ class Lava(pygame.sprite.Sprite):
             self.counter = 0
             
         def update(self):
+            # animate lava
             self.frame += 0.2
             self.counter = int(self.frame)
             self.image = self.images[(self.counter % 16)]
+            
+            # set hitbox
             self.hitbox = (self.rect.x, self.rect.y+(tile_size-25), tile_size, tile_size-25)
+            
+            #render lava
             screen.blit(self.image, (self.x,self.y))
             #RENDER HITBOX
             #pygame.draw.rect(screen,WHITE,self.hitbox,2)
@@ -412,9 +457,8 @@ while run:
     screen.blit(sun_img,(tile_size*2,tile_size*2))
 
     # update groups
-    if game_over == 0:
-        lava_group.update()
-        blob_group.update()
+    lava_group.update()
+    blob_group.update()
     
     #draw tiles
     world.draw()
