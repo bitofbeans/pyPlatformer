@@ -1,4 +1,5 @@
 # Import Pygame
+from lib2to3.refactor import get_all_fix_names
 import pygame
 #from pygame.locals import *
 
@@ -9,6 +10,7 @@ fps = 60
 
 # Game Variables
 tile_size = 50
+game_over = 0
 
 # Global Constants
 hideUnknownTiles = True # When true, it hides the tiles that it can not recognize
@@ -73,13 +75,12 @@ class Player():
         
         # Create player hitbox
         self.image = self.images_right[self.frame]
-        self.rect = self.image.get_rect()
-        self.collideRect =  pygame.rect.Rect((x, y), (playerWidth, playerHeight))
-        self.collideRect.midbottom = self.rect.midbottom
+        self.rect = pygame.rect.Rect(x, y, playerWidth, playerHeight)
+        print(self.rect.x)
         
         # Set Position and variables
-        self.rect.x = x
-        self.rect.y = y
+        self.x = x
+        self.y = y
         self.c_width = playerWidth
         self.c_height = playerHeight
         self.velX = 0
@@ -87,11 +88,17 @@ class Player():
         self.jumped = 0
         self.direction = 0
         self.airtime = 0
-
-    def update(self):
+    
+    def update(self,game_over):
         # Set delta x/y
         dx = 0
         dy = 0
+        
+        if game_over != 0:
+            
+            # render player
+            screen.blit(self.image, self.rect)
+            return game_over
         
         # Get keys pressed
         key = pygame.key.get_pressed()
@@ -157,37 +164,43 @@ class Player():
         self.airtime += 1
         for tile in world.tile_list:
             # check for collision in x direction
-            if tile[1].colliderect(self.collideRect.x + dx, self.collideRect.y, self.c_width, self.c_height):
+            if tile[1].colliderect(self.rect.x + dx, self.y, self.rect.width, self.rect.height):
                 if self.velX >= 0:
-                    dx = tile[1].left - self.collideRect.right
+                    dx = tile[1].left - self.rect.right
                 elif self.velX < 0:
-                    dx = tile[1].right - self.collideRect.left
+                    dx = tile[1].right - self.rect.left
             # check for collision in y direction
-            if tile[1].colliderect(self.collideRect.x, self.collideRect.y + dy, self.c_width, self.c_height):
+            if tile[1].colliderect(self.rect.x, self.y + dy, self.rect.width, self.rect.height):
                 # check if above the ground/ if falling
                 if self.velY >= 0:
-                    dy = tile[1].top - self.collideRect.bottom
+                    dy = tile[1].top - self.rect.bottom
                     self.airtime = 0
                 # check if below the ground/ if jumping
                 elif self.velY < 0:
-                    dy = tile[1].bottom - self.collideRect.top
-
+                    dy = tile[1].bottom - self.rect.top
                 self.velY = 0
         
+        # check for collision with enemies
+        if pygame.sprite.spritecollide(self, blob_group, False):
+            game_over = -1
+            
+        # check for collision with lava
+        if pygame.sprite.spritecollide(self, lava_group, False):
+            game_over = -1
+        
+        
         # update player position
-        self.rect.x += dx
-        self.rect.y += dy
-        if self.rect.bottom > screenHeight:
-          self.rect.bottom = screenHeight
-    
-        # position hitbox
-        self.collideRect.midbottom = self.rect.midbottom
+        self.x += dx
+        self.y += dy
+        self.rect = pygame.rect.Rect(self.x+(playerWidth/2), self.y, playerWidth, playerHeight)
           
         # render player
-        screen.blit(self.image, self.rect)
+        screen.blit(self.image, (self.x,self.y))
         
         # RENDER HITBOX
-        # pygame.draw.rect(screen,(255,0,0),self.collideRect,2)
+        #pygame.draw.rect(screen,(255,0,0),self.rect,2)
+        #pygame.draw.rect(screen,WHITE,self.rect,2)
+        return game_over
 
 
 # --- WORLD SPRITE
@@ -197,11 +210,12 @@ class World():
       self.tile_list = []
       
       # load images
-      self.tileTypes = [1,2,3]
+      self.tileTypes = [1,2,3,6]
       dirt_img = pygame.image.load('img/tile/dirt.png')
       grass_img = pygame.image.load('img/tile/grass.png')
       err = pygame.image.load('img/tile/unknown.png')
       self.errorImg = err
+      
       # extract tiles from data
       row_count = 0
       for row in data:
@@ -209,27 +223,41 @@ class World():
           for tile in row:
               if tile != 0:
                   if tile == 1:
+                      # add dirt
                       img = pygame.transform.scale(dirt_img,(tile_size,tile_size))
+                      img_rect = img.get_rect()
+                      img_rect.x = col_count * tile_size
+                      img_rect.y = row_count * tile_size
+                      tile = (img,img_rect,tile)
+                      self.tile_list.append(tile)
+
                   elif tile == 2:
+                      # add grass
                       img = pygame.transform.scale(grass_img,(tile_size,tile_size))
+                      img_rect = img.get_rect()
+                      img_rect.x = col_count * tile_size
+                      img_rect.y = row_count * tile_size
+                      tile = (img,img_rect,tile)
+                      self.tile_list.append(tile)
                   elif tile == 3:
+                      # create enemy 
                       blob = Enemy(col_count * tile_size, row_count * tile_size)
                       blob_group.add(blob)
-                      col_count += 1
-                      continue
+                  elif tile == 6:
+                      # create lava
+                      lava = Lava(col_count * tile_size, row_count * tile_size)
+                      lava_group.add(lava)
                   else: 
                       # unknown tile
                       img = pygame.transform.scale(err,(tile_size,tile_size))
                       global hideUnknownTiles
-                      if hideUnknownTiles == True:
-                        col_count += 1
-                        continue
+                      if hideUnknownTiles == False:
+                        img_rect = img.get_rect()
+                        img_rect.x = col_count * tile_size
+                        img_rect.y = row_count * tile_size
+                        tile = (img,img_rect,tile)
+                        self.tile_list.append(tile)
 
-                  img_rect = img.get_rect()
-                  img_rect.x = col_count * tile_size
-                  img_rect.y = row_count * tile_size
-                  tile = (img,img_rect,tile)
-                  self.tile_list.append(tile)
               col_count += 1
           row_count += 1
         
@@ -249,6 +277,7 @@ class World():
            # RENDER HITBOX
            # pygame.draw.rect(screen,WHITE,tile[1],2)
 
+### --- ENEMY SPRITE
 class Enemy(pygame.sprite.Sprite):
     def __init__(self, x, y):
         # inherit sprite constructor
@@ -264,24 +293,27 @@ class Enemy(pygame.sprite.Sprite):
         
         # set position and create hitbox
         self.rect = self.image.get_rect()
-        self.rect.x = x
-        self.rect.y = y
-        self.collideRect =  pygame.rect.Rect((x, y), (tile_size-15, tile_size-25))
-        self.collideRect.midbottom = self.rect.midbottom
-        
+        self.x = x
+        self.y = y
+        self.rect = pygame.rect.Rect(x, y, tile_size-15, tile_size-25)
+
+
         # variables
         self.move_dir = 1
         self.move_counter = 0
         self.frame = 0
         self.counter = 0
         
+    def render(self):
+        screen.blit(self.image, (self.x,self.y+50))
+    
     def update(self):
         #increment animation frame
         self.frame += 0.1
         self.counter = int(self.frame)
         
         # move enemy
-        self.rect.x += self.move_dir
+        self.x += self.move_dir
         self.move_counter += 1
         if self.move_counter > 50:
             # flip direction after 50 frames
@@ -289,16 +321,48 @@ class Enemy(pygame.sprite.Sprite):
             self.move_counter *= -1
             
         # update hitbox position
-        self.collideRect.midbottom = self.rect.midbottom   
+        self.rect = (self.x+(15/2), self.y+tile_size-25, tile_size-15, tile_size-25)
             
         # animate
         self.image = self.images[(self.counter % 4)]
+        screen.blit(self.image, (self.x,self.y))
+        
         # RENDER HITBOX
-        # pygame.draw.rect(screen,WHITE,self.collideRect,2)
+        #pygame.draw.rect(screen,(255,0,0),self.rect,2)
+        
             
+### --- LAVA SPRITE
+class Lava(pygame.sprite.Sprite):
+        def __init__(self, x, y):
+            pygame.sprite.Sprite.__init__(self)
         
-        
-        
+            # add animation frames
+            self.images = []
+            for i in range(1,17):
+                img = pygame.image.load(f'img/tile/lava{i}.png')
+                img = pygame.transform.scale(img,(tile_size,tile_size))
+                self.images.append(img)
+            self.image = self.images[0]
+            
+            # set position and create hitbox
+            self.x = x
+            self.y = y
+            self.rect = pygame.rect.Rect(x, y+tile_size-25, tile_size, tile_size-25)
+            
+            #animation variables
+            self.frame = 0
+            self.counter = 0
+            
+        def update(self):
+            self.frame += 0.2
+            self.counter = int(self.frame)
+            self.image = self.images[(self.counter % 16)]
+            self.hitbox = (self.rect.x, self.rect.y+(tile_size-25), tile_size, tile_size-25)
+            screen.blit(self.image, (self.x,self.y))
+            #RENDER HITBOX
+            #pygame.draw.rect(screen,WHITE,self.hitbox,2)
+            #pygame.draw.rect(screen,(255,0,0),self.rect,2)
+     
 # set world data
 world_data =[
 [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 
@@ -327,6 +391,7 @@ world_data =[
 player = Player(100, screenHeight - tile_size*2)
 
 blob_group = pygame.sprite.Group()
+lava_group = pygame.sprite.Group()
 
 world = World(world_data)
 
@@ -345,13 +410,17 @@ while run:
      #render bg
     screen.blit(bg_img,(0,0))
     screen.blit(sun_img,(tile_size*2,tile_size*2))
-     #draw tiles
+
+    # update groups
+    if game_over == 0:
+        lava_group.update()
+        blob_group.update()
+    
+    #draw tiles
     world.draw()
-     #enemy logic
-    blob_group.draw(screen)
-    blob_group.update()
-     #player movement and rendering
-    player.update()
+
+    #player movement and rendering
+    game_over = player.update(game_over)
     
     # --- update display
     pygame.display.update()
