@@ -1,6 +1,8 @@
-# Import Pygame
+# --- INITIALIZE ----------------------------------------------------------------------------- #
+# Import modules
 import pygame
-#from pygame.locals import *
+import json
+from itertools import repeat
 
 # Initialize pygame and create clock
 pygame.init()
@@ -15,6 +17,7 @@ game_over = 0
 hideUnknownTiles = True # When true, it hides the tiles that it can not recognize
 screenWidth = 1000
 screenHeight = 1000
+offset = repeat((0, 0))
 
 # Player Variables
 playerWidth = tile_size-30
@@ -30,14 +33,18 @@ BLACK = (0,0,0)
 WHITE = (255,255,255)
 
 # Create game window
-screen = pygame.display.set_mode((screenWidth,screenHeight))
+org_screen = pygame.display.set_mode((screenWidth,screenHeight))
+screen = org_screen.copy()
 pygame.display.set_caption('Platformer')
 
-# Image imports and data
-sun_img = pygame.image.load('img/sun.png')
+# Image imports
+sun_img = pygame.image.load('img/deco/sun.png')
 sun_img = pygame.transform.scale(sun_img, (tile_size*2, tile_size*2))
-bg_img = pygame.image.load('img/sky.png')
-#bg_img = pygame.transform.scale(bg_img, (950+tile_size*2, 950+tile_size*2 ))
+bg_img = pygame.image.load('img/deco/sky.png')
+restartImg = pygame.image.load('img/ui/restart_button.png')
+restartImg = pygame.transform.scale(restartImg, (100, 100))
+restartImgPress = pygame.image.load('img/ui/restart_button_press.png')
+restartImgPress = pygame.transform.scale(restartImgPress, (100, 100))
 
 # Import outline image and outline data
 outline_img = pygame.image.load('img/tile/outline.png')
@@ -45,17 +52,86 @@ pixelRes= outline_img.get_width()
 scaler = (tile_size / pixelRes)+0.1
 outline_img = pygame.transform.scale(outline_img,((pixelRes+2)*scaler,(pixelRes+2)*scaler))
 scaler -=0.2
+# --- FUNCTIONS ----------------------------------------------------------------------------- #
 
-# --- PLAYER SPRITE
+# Shake Function
+def shake():
+    s = -1
+    for _ in range(0, 3):
+        for x in range(0, 10, 5):
+            for y in range(0, 10, 5):
+                yield (x*s, y*s)
+        for x in range(10, 0, 5):
+            for y in range(0, 10, 5):
+                yield (x*s, y*s)
+        s *= -1
+    while True:
+        yield (0, 0)
+        
+# Load world from .json
+def loadWorld(world_name): 
+    # File path for .json file
+    data_file= 'world_data.json'
+
+    # Load file
+    with open(data_file, "r") as read_file:
+            world_file = json.load(read_file)
+    # return data
+    return world_file[world_name]
+
+# --- SPRITES ----------------------------------------------------------------------------- #
+
+# --- BUTTON SPRITE ------------------------- #
+class Button():
+    def __init__(self, x, y, image, image_pressed):
+        # set image
+        self.images = [image, image_pressed]
+        self.image = image
+        # get image rect
+        self.rect = self.image.get_rect()
+        # position
+        self.rect.x = x
+        self.rect.y = y + 7.7*2
+        self.rect.height = self.rect.width - (6.7*4)
+        # position
+        self.x = x
+        self.y = y
+        #clicked
+        self.clicked = False
+        # image
+        self.frame = 0
+        
+    def draw(self):
+        action = False
+        #get mouse pos
+        pos = pygame.mouse.get_pos()
+        self.frame = 0
+        # check mouse touching and clicking
+        if self.rect.collidepoint(pos):
+            self.frame = 1
+            if pygame.mouse.get_pressed()[0] == True and self.clicked == False:
+                # button clicked
+                action = True
+                self.clicked = True
+        # if not clicking mouse
+        if pygame.mouse.get_pressed()[0] == False:
+            self.clicked = False
+        
+        
+        # draw button
+        self.image = self.images[self.frame]
+        screen.blit(self.image, (self.x, self.y))
+        
+        # return if button pressed
+        return action
+        
+# --- PLAYER SPRITE ------------------------- #
 class Player():
          
     def __init__(self,x,y):
         # Create animation variables
         self.images_right = []
         self.images_left = []
-        self.frame = 0
-        self.counter = 0
-        
         # Load animation frames function
         def imgLoad(img):
                 img_right = pygame.image.load('img/player/'+ img +'.png')
@@ -63,7 +139,6 @@ class Player():
                 img_left = pygame.transform.flip(img_right, True, False)
                 self.images_right.append(img_right)
                 self.images_left.append(img_left)
-        
         # Load all frames
         imgLoad('idle0')
         imgLoad('idle1')
@@ -71,34 +146,60 @@ class Player():
         imgLoad('run1')
         imgLoad('air0')
         imgLoad('air1')
+        # Load ghost frames
+        self.images_deadr = []
+        self.images_deadl = []
+        for number in range(1,6):
+            img_right = pygame.image.load(f'img/player/ghost{number}.png')
+            img_right = pygame.transform.scale(img_right,(tile_size, tile_size))
+            img_left = pygame.transform.flip(img_right, True, False)
+            self.images_deadr.append(img_right)
+            self.images_deadl.append(img_left)
         
         # Create player hitbox
-        self.image = self.images_right[self.frame]
+        self.image = self.images_right[0]
         self.rect = pygame.rect.Rect(x, y, playerWidth, playerHeight)
         
         # Set Position and variables
-        self.x = x
-        self.y = y
-        self.c_width = playerWidth
-        self.c_height = playerHeight
-        self.velX = 0
-        self.velY = 0
-        self.jumped = 0
-        self.direction = 0
-        self.airtime = 0
+        self.reset(x,y)
     
     def update(self,game_over):
+        ### --- update player --- ###
+        def gameOver(gameover):
+            # game over
+            self.frame=0
+            self.velX = 5 *-self.direction
+            self.velY = -1
+            global offset
+            offset = shake()
+            return gameover
+        
         # Set delta x/y
         dx = 0
         dy = 0
-        # if dead,
+        # if dead, fly ghost up
         if game_over != 0:
-            
-            # render player
-            screen.blit(self.image, self.rect)
-            return game_over
+            if game_over == -1:
+                # render player
+                self.frame += 0.2
+                if int(self.frame) > 4: self.frame = 4
+                self.counter = int(self.frame)
+                if self.direction == 1:
+                    self.image = self.images_deadl[self.counter%5]
+                else:
+                    self.image = self.images_deadr[self.counter%5]
+                self.velX *= 0.9
+                self.velY -= 0.15
+                self.x += self.velX
+                self.y += self.velY
+                if self.y < -50:
+                    self.y = -50
+                    self.velY = 0
+                    self.velX = 0
+                screen.blit(self.image, (self.x,self.y-3))
+                return game_over
         
-        # if alive,
+        # if alive, continue onward
         # Get keys pressed
         key = pygame.key.get_pressed()
         
@@ -108,15 +209,18 @@ class Player():
             self.jumped = 1
         elif key[pygame.K_UP]: self.jumped += 1
         if key[pygame.K_UP] and 1 <= self.jumped <= 6 and self.airtime < 6:
+            # jump
             self.velY = jumpPower
         if key[pygame.K_UP] == False: self.jumped = 0
     
         # X axis
         if key[pygame.K_LEFT]:
+            # move left
             self.velX -= moveSpeed
             self.direction = -1
             self.frame += 0.07
         if key[pygame.K_RIGHT]:
+            # move right
             self.velX += moveSpeed
             self.direction = 1
             self.frame += 0.07
@@ -124,14 +228,13 @@ class Player():
         self.velX *= friction
         dx += int(self.velX)
         
-        # Handle animation
+        # Handle animation -----------
              # animation frames
          #### idle = 0,1
          #### run = 2,3
          #### air = 4,5
         self.frame += 0.05
         self.counter = int(self.frame)
-        
         
         if self.airtime > 1:
             #if in air
@@ -167,7 +270,8 @@ class Player():
             else:
                 #left
                 self.image = self.images_left[(self.counter % 2)]
-
+        # -----------------------------------
+        
         # gravity and change y by velocity
         self.velY += gravity
         if self.velY > fallMax: self.velY = fallMax
@@ -202,7 +306,7 @@ class Player():
                 if Enemy.alive:
                     if self.velY < 3:
                         # if we didnt jump on it, game over
-                        game_over = -1
+                        game_over = gameOver(-1)
                     else:
                         # if we jumped on top of it, kill the slime
                         Enemy.die()
@@ -210,7 +314,8 @@ class Player():
             
         # check for collision with lava
         if pygame.sprite.spritecollide(self, lava_group, False):
-            game_over = -1
+            # if touching lava, die
+            game_over = gameOver(-1)
         
         
         # update player position
@@ -227,9 +332,23 @@ class Player():
         
         # return the game over variable and feed it back in
         return game_over
+    
+    def reset(self, x, y):
+        # Set Position and variables
+        # reset
+        self.x = x
+        self.y = y
+        self.rect = pygame.rect.Rect(self.x+(playerWidth/2), self.y, playerWidth, playerHeight)
+        self.velX = 0
+        self.velY = 0
+        self.jumped = 0
+        self.direction = 0
+        self.airtime = 0
+        self.frame = 0
+        self.counter = 0
+        
 
-
-# --- WORLD SPRITE
+# --- WORLD SPRITE ------------------------- #
 class World():
     def __init__(self,data):
       # clear list
@@ -303,7 +422,7 @@ class World():
            # RENDER HITBOX
            # pygame.draw.rect(screen,WHITE,tile[1],2)
 
-### --- ENEMY SPRITE
+# --- ENEMY SPRITE ------------------------- #
 class Enemy(pygame.sprite.Sprite):
     def __init__(self, x, y):
         # inherit sprite constructor
@@ -311,7 +430,7 @@ class Enemy(pygame.sprite.Sprite):
         
         # add animation frames
         self.images = []
-        for i in range(0,4):
+        for i in range(0,5):
             img = pygame.image.load(f'img/enemy/blob{i}.png').convert()
             img = pygame.transform.scale(img,(tile_size,tile_size))
             self.images.append(img)
@@ -333,23 +452,25 @@ class Enemy(pygame.sprite.Sprite):
         self.alpha = 255
 
     def die(self):
-        # die
+        # alive bool = false 
         self.alive = False
-        
+        self.image = self.images[4]
     
     def update(self):
-        # animate image
-        self.image = self.images[(self.counter % 4)]
+    
         if self.alive:
             #increment animation frame
             self.frame += 0.1
             self.counter = int(self.frame)
             
+            # animate image
+            self.image = self.images[(self.counter % 4)]
+            
             # move enemy
             self.x += self.move_dir
             self.move_counter += 1
             if self.move_counter > 50:
-                # flip direction after 50 frames
+                # flip direction after 50 steps past origin
                 self.move_dir *= -1
                 self.move_counter *= -1
                 
@@ -370,7 +491,7 @@ class Enemy(pygame.sprite.Sprite):
         #pygame.draw.rect(screen,(255,0,0),self.rect,2)
         
             
-### --- LAVA SPRITE
+# --- LAVA SPRITE ------------------------- #
 class Lava(pygame.sprite.Sprite):
         def __init__(self, x, y):
             # use pygame sprite constructor
@@ -408,66 +529,51 @@ class Lava(pygame.sprite.Sprite):
             #pygame.draw.rect(screen,WHITE,self.hitbox,2)
             #pygame.draw.rect(screen,(255,0,0),self.rect,2)
      
-# set world data
-world_data =[
-[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 
-[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 
-[1, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 1], 
-[1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 2, 2, 1], 
-[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 7, 0, 5, 0, 0, 0, 1], 
-[1, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 1], 
-[1, 0, 0, 0, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 
-[1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 
-[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 7, 0, 0, 0, 0, 1], 
-[1, 0, 2, 0, 0, 7, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 
-[1, 0, 0, 2, 0, 0, 4, 0, 0, 0, 0, 3, 0, 0, 3, 0, 0, 0, 0, 1], 
-[1, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 0, 0, 0, 1], 
-[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 
-[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 7, 0, 0, 0, 0, 2, 0, 1], 
-[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 
-[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 2, 2, 2, 2, 2, 1], 
-[1, 0, 0, 0, 0, 0, 2, 2, 2, 6, 6, 6, 6, 6, 1, 1, 1, 1, 1, 1], 
-[1, 0, 0, 0, 0, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 
-[1, 0, 0, 0, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 
-[1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-]
-
-# --- create sprites
+# --- CREATE SPRITES ----------------------------------------------------------------------------- #
 player = Player(100, screenHeight - tile_size*2)
-
+# sprite groups
 blob_group = pygame.sprite.Group()
 lava_group = pygame.sprite.Group()
+# world
+world = World(loadWorld("world1"))
+#create buttons
+restart_button = Button(screenWidth//2 - 50, 890, restartImg, restartImgPress)
 
-world = World(world_data)
-
-# --- game loop
+# --- GAME LOOP ----------------------------------------------------------------------------- #
 run = True
 while run:
-    # --- tick fps
+    # --- Tick FPS ------------------ #
     clock.tick(fps)
     
-    # escape condition
+    # --- Escape Condition ------------ #
     for event in pygame.event.get():
       if event.type == pygame.QUIT:
         run = False
     
-    # --- game logic
+    # --- Game Logic/Rendering -------- #
      #render bg
     screen.blit(bg_img,(0,0))
     screen.blit(sun_img,(tile_size*2,tile_size*2))
-
     # update groups
     lava_group.update()
     blob_group.update()
-    
     #draw tiles
     world.draw()
-
     #player movement and rendering
     game_over = player.update(game_over)
+    # if player has died
+    if game_over == -1:
+        # restart button pressed
+        if restart_button.draw():
+            # reset player
+            player.reset(100, screenHeight - tile_size*2)
+            game_over = 0
+        
+    # --- Render Screen -------------- #
+    org_screen.blit(screen, next(offset))
     
-    # --- update display
+    # --- Update Display ------------- #
     pygame.display.update()
 
-# end   
+# --- END ----------------------------------------------------------------------------- #
 pygame.quit()
