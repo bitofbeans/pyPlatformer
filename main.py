@@ -16,11 +16,12 @@ tile_size = 50
 game_over = 0
 
 # Global Constants
-hideUnknownTiles = True # When true, it hides the tiles that it can not recognize
+hideUnknownTiles = False # When true, it hides the tiles that it can not recognize
 screenWidth = 1000
 screenHeight = 1000
 offset = repeat((0, 0))
 main_menu = True
+max_levels = 7
 
 # Player Variables
 ### optimised value / tile size it was optimised on
@@ -88,6 +89,19 @@ def loadWorld(input):
     spawn_point[0], spawn_point[1] = spawn_point[0]*tile_size, spawn_point[1]*tile_size
     world_data = loadData(f"world{input}")
     return world_data, spawn_point
+
+def reset_level(world_num):
+    # clear sprites
+    blob_group.empty()
+    lava_group.empty()
+    exit_group.empty()
+    # reload new world
+    world_data, spawn_point = loadWorld(world_num)
+    world = World(world_data)
+    # reset player
+    player.reset(spawn_point[0], spawn_point[1])
+    
+    return world
 
 # --- SPRITES ----------------------------------------------------------------------------- #
 
@@ -179,7 +193,7 @@ class Player():
         # Set Position and variables
         self.reset(x,y)
     
-    def update(self,game_over, world_num):
+    def update(self,game_over):
         ### --- update player --- ###
         def gameOver(gameover):
             # game over
@@ -213,7 +227,7 @@ class Player():
                     self.velY = 0
                     self.velX = 0
                 screen.blit(self.image, (self.x,self.y-3))
-                return game_over, world_num
+                return game_over
         
         # if alive, continue onward
         # Get keys pressed
@@ -332,6 +346,11 @@ class Player():
         if pygame.sprite.spritecollide(self, lava_group, False):
             # if touching lava, die
             game_over = gameOver(-1)
+            
+        # check for collision with exit
+        if pygame.sprite.spritecollide(self, exit_group, False):
+            # if touching exit, win
+            game_over = 1
         
         
         # update player position
@@ -346,7 +365,7 @@ class Player():
         #pygame.draw.rect(screen,WHITE,self.rect,2)
         
         # return the variables and feed it back in
-        return game_over, world_num
+        return game_over
     
     def reset(self, x, y):
         # Set Position and variables
@@ -407,6 +426,11 @@ class World():
                       # create lava
                       lava = Lava(col_count * tile_size, row_count * tile_size)
                       lava_group.add(lava)
+                  elif tile == 8:
+                      # create enemy 
+                      exit = Exit(col_count * tile_size, row_count * tile_size)
+                      exit_group.add(exit)
+                      
                   else: 
                       # unknown tile
                       img = pygame.transform.scale(err,(tile_size,tile_size))
@@ -543,18 +567,37 @@ class Lava(pygame.sprite.Sprite):
             #RENDER HITBOX
             #pygame.draw.rect(screen,WHITE,self.hitbox,2)
             #pygame.draw.rect(screen,(255,0,0),self.rect,2)
+
+# --- EXIT SPRITE ------------------------- #
+class Exit(pygame.sprite.Sprite):
+        def __init__(self, x, y):
+            # use pygame sprite constructor
+            pygame.sprite.Sprite.__init__(self)
+            # load image
+            img = pygame.image.load('img/tile/exit.png')
+            img = pygame.transform.scale(img,(tile_size,tile_size))
+            self.image = img
+            # position
+            self.x = x
+            self.y = y
+            self.rect = pygame.rect.Rect(x+(tile_size*0.75/2), y, tile_size*0.75, tile_size)
+            
+        def update(self):
+            
+            #render exit
+            screen.blit(self.image, (self.x,self.y))
+            
      
 # --- CREATE SPRITES ----------------------------------------------------------------------------- #
  #load world
-world_num = 1
-default_wrld = world_num
+world_num = 7
 world_data, spawn_point = loadWorld(world_num)
-
  #make player
 player = Player(spawn_point[0], spawn_point[1])
  # sprite groups
 blob_group = pygame.sprite.Group()
 lava_group = pygame.sprite.Group()
+exit_group = pygame.sprite.Group()
  # world
 world = World(world_data)
  #create buttons
@@ -593,35 +636,34 @@ while run:
         # update groups
         lava_group.update()
         blob_group.update()
+        exit_group.update()
         #draw tiles
         world.draw()
         #player movement and rendering
           # update player, but also get the game_over and world_num variable
-        game_over, world_num = player.update(game_over, world_num)
+        game_over = player.update(game_over)
         # if player has died
         if game_over == -1:
             # restart button pressed
             if restart_button.draw():
                 # reset player
-                player.reset(spawn_point[0], spawn_point[1])
+                world = reset_level(world_num)
                 game_over = 0
-        ### --- WORLD SWITCHING --- ###
-        if world_num != default_wrld:
-            # --- if world has changed
-            # reset default world
-            default_wrld = world_num
-            # delete all of past world data
-            del world
-            # clear sprites
-            blob_group.empty()
-            lava_group.empty()
-            
-            # reload new world
-            world_data, spawn_point = loadWorld(world_num)
-            world = World(world_data)
-            # reset player
-            player.reset(spawn_point[0], spawn_point[1])
-            
+        # if player has won
+        if game_over == 1:
+            if world_num+1 > max_levels:
+                # end of the game
+                if restart_button.draw():
+                    # restart to main menu
+                    world_num = 1
+                    world = reset_level(world_num)
+                    game_over = 0
+                    main_menu = True
+            else: 
+                # --- NEXT WORLD --- #
+                world_num += 1
+                world = reset_level(world_num)
+                game_over = 0
             
     # --- Render Screen -------------- #
     org_screen.blit(screen, next(offset))
