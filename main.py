@@ -3,9 +3,11 @@
 import pygame
 import json
 from itertools import repeat
+from math import sin, pi
 
 # Initialize pygame and create clock
 pygame.init()
+timer = 0
 clock = pygame.time.Clock()
 fps = 60
 
@@ -18,14 +20,17 @@ hideUnknownTiles = True # When true, it hides the tiles that it can not recogniz
 screenWidth = 1000
 screenHeight = 1000
 offset = repeat((0, 0))
+main_menu = True
 
 # Player Variables
-playerWidth = tile_size-30
-playerHeight = tile_size-15
-gravity = 0.8
-fallMax = 15
-jumpPower = -10
-moveSpeed = 1.5
+### optimised value / tile size it was optimised on
+### new value * tile_size
+playerWidth = tile_size*0.4 # 50 = 20
+playerHeight = tile_size*0.7 # 50 = 35
+gravity = 0.016*tile_size # 50 = 0.8
+fallMax = 0.3*tile_size  # 50 = 15
+jumpPower = -0.2*tile_size # 50 = -10
+moveSpeed = 0.03*tile_size # 50 = 1.5
 friction = 0.8
 
 # Color Definitions
@@ -41,15 +46,13 @@ pygame.display.set_caption('Platformer')
 sun_img = pygame.image.load('img/deco/sun.png')
 sun_img = pygame.transform.scale(sun_img, (tile_size*2, tile_size*2))
 bg_img = pygame.image.load('img/deco/sky.png')
-restartImg = pygame.image.load('img/ui/restart_button.png')
-restartImg = pygame.transform.scale(restartImg, (100, 100))
-restartImgPress = pygame.image.load('img/ui/restart_button_press.png')
-restartImgPress = pygame.transform.scale(restartImgPress, (100, 100))
+border_img = pygame.image.load('img/deco/border.png')
+border_img = pygame.transform.scale(border_img, (screenWidth, 1328.125))
 
 # Import outline image and outline data
 outline_img = pygame.image.load('img/tile/outline.png')
 pixelRes= outline_img.get_width()
-scaler = (tile_size / pixelRes)+0.1
+scaler = (tile_size / pixelRes)+(0.002*tile_size)
 outline_img = pygame.transform.scale(outline_img,((pixelRes+2)*scaler,(pixelRes+2)*scaler))
 scaler -=0.2
 # --- FUNCTIONS ----------------------------------------------------------------------------- #
@@ -69,36 +72,49 @@ def shake():
         yield (0, 0)
         
 # Load world from .json
-def loadWorld(world_name): 
+def loadData(input): 
     # File path for .json file
     data_file= 'world_data.json'
 
     # Load file
     with open(data_file, "r") as read_file:
-            world_file = json.load(read_file)
+            data = json.load(read_file)
     # return data
-    return world_file[world_name]
+    return data[input]
+
+# Load all world data from .json
+def loadWorld(input):
+    spawn_point = loadData(f"spawn{input}")
+    spawn_point[0], spawn_point[1] = spawn_point[0]*tile_size, spawn_point[1]*tile_size
+    world_data = loadData(f"world{input}")
+    return world_data, spawn_point
 
 # --- SPRITES ----------------------------------------------------------------------------- #
 
 # --- BUTTON SPRITE ------------------------- #
 class Button():
-    def __init__(self, x, y, image, image_pressed):
+    def __init__(self, x, y, name, scale):
         # set image
-        self.images = [image, image_pressed]
-        self.image = image
+        button = pygame.image.load('img/ui/'+str(name)+'.png')
+        button = pygame.transform.scale(button, scale)
+        buttonPress = pygame.image.load('img/ui/'+str(name)+'_press.png')
+        buttonPress = pygame.transform.scale(buttonPress, scale)
+        self.images = [button, buttonPress]
+        self.image = button
         # get image rect
         self.rect = self.image.get_rect()
         # position
-        self.rect.x = x
+        self.rect.x = x + 7.7
         self.rect.y = y + 7.7*2
-        self.rect.height = self.rect.width - (6.7*4)
+        # trim button rect
+        self.rect.height = self.rect.height - (6.7*4)
+        self.rect.width = self.rect.width - (6.7*3)
         # position
         self.x = x
         self.y = y
         #clicked
         self.clicked = False
-        # image
+        # animate
         self.frame = 0
         
     def draw(self):
@@ -163,7 +179,7 @@ class Player():
         # Set Position and variables
         self.reset(x,y)
     
-    def update(self,game_over):
+    def update(self,game_over, world_num):
         ### --- update player --- ###
         def gameOver(gameover):
             # game over
@@ -197,7 +213,7 @@ class Player():
                     self.velY = 0
                     self.velX = 0
                 screen.blit(self.image, (self.x,self.y-3))
-                return game_over
+                return game_over, world_num
         
         # if alive, continue onward
         # Get keys pressed
@@ -212,7 +228,7 @@ class Player():
             # jump
             self.velY = jumpPower
         if key[pygame.K_UP] == False: self.jumped = 0
-    
+       
         # X axis
         if key[pygame.K_LEFT]:
             # move left
@@ -327,11 +343,10 @@ class Player():
         screen.blit(self.image, (self.x,self.y-3))
         
         # RENDER HITBOX
-        #pygame.draw.rect(screen,(255,0,0),self.rect,2)
         #pygame.draw.rect(screen,WHITE,self.rect,2)
         
-        # return the game over variable and feed it back in
-        return game_over
+        # return the variables and feed it back in
+        return game_over, world_num
     
     def reset(self, x, y):
         # Set Position and variables
@@ -342,8 +357,8 @@ class Player():
         self.velX = 0
         self.velY = 0
         self.jumped = 0
-        self.direction = 0
-        self.airtime = 0
+        self.direction = 1
+        self.airtime = 0 
         self.frame = 0
         self.counter = 0
         
@@ -530,20 +545,29 @@ class Lava(pygame.sprite.Sprite):
             #pygame.draw.rect(screen,(255,0,0),self.rect,2)
      
 # --- CREATE SPRITES ----------------------------------------------------------------------------- #
-player = Player(100, screenHeight - tile_size*2)
-# sprite groups
+ #load world
+world_num = 1
+default_wrld = world_num
+world_data, spawn_point = loadWorld(world_num)
+
+ #make player
+player = Player(spawn_point[0], spawn_point[1])
+ # sprite groups
 blob_group = pygame.sprite.Group()
 lava_group = pygame.sprite.Group()
-# world
-world = World(loadWorld("world1"))
-#create buttons
-restart_button = Button(screenWidth//2 - 50, 890, restartImg, restartImgPress)
+ # world
+world = World(world_data)
+ #create buttons
+restart_button = Button(screenWidth//2 - 50, 890, 'restart_button', (100, 100))
+start_button = Button(screenWidth//2 - 150, screenHeight//2, 'start_button', (100, 100))
+exit_button = Button(screenWidth//2 + 50, screenHeight//2, 'exit_button', (100, 100))
 
 # --- GAME LOOP ----------------------------------------------------------------------------- #
 run = True
 while run:
     # --- Tick FPS ------------------ #
-    clock.tick(fps)
+    dt = clock.tick(fps)/1000
+    timer += dt
     
     # --- Escape Condition ------------ #
     for event in pygame.event.get():
@@ -553,22 +577,52 @@ while run:
     # --- Game Logic/Rendering -------- #
      #render bg
     screen.blit(bg_img,(0,0))
-    screen.blit(sun_img,(tile_size*2,tile_size*2))
-    # update groups
-    lava_group.update()
-    blob_group.update()
-    #draw tiles
-    world.draw()
-    #player movement and rendering
-    game_over = player.update(game_over)
-    # if player has died
-    if game_over == -1:
-        # restart button pressed
-        if restart_button.draw():
+    
+    if main_menu == True:
+        # --- Main Menu --- #
+        rad = (timer*pi)/180
+        screen.blit(border_img,(0,
+                                (sin(rad*150)*20)-200))
+        if exit_button.draw():
+            run = False
+        if start_button.draw():
+            main_menu = False
+    else: 
+        # --- Game Physics --- #
+        screen.blit(sun_img,(tile_size*2,tile_size*2))
+        # update groups
+        lava_group.update()
+        blob_group.update()
+        #draw tiles
+        world.draw()
+        #player movement and rendering
+          # update player, but also get the game_over and world_num variable
+        game_over, world_num = player.update(game_over, world_num)
+        # if player has died
+        if game_over == -1:
+            # restart button pressed
+            if restart_button.draw():
+                # reset player
+                player.reset(spawn_point[0], spawn_point[1])
+                game_over = 0
+        ### --- WORLD SWITCHING --- ###
+        if world_num != default_wrld:
+            # --- if world has changed
+            # reset default world
+            default_wrld = world_num
+            # delete all of past world data
+            del world
+            # clear sprites
+            blob_group.empty()
+            lava_group.empty()
+            
+            # reload new world
+            world_data, spawn_point = loadWorld(world_num)
+            world = World(world_data)
             # reset player
-            player.reset(100, screenHeight - tile_size*2)
-            game_over = 0
-        
+            player.reset(spawn_point[0], spawn_point[1])
+            
+            
     # --- Render Screen -------------- #
     org_screen.blit(screen, next(offset))
     
