@@ -157,7 +157,6 @@ class Button():
         
 # --- PLAYER SPRITE ------------------------- #
 class Player():
-         
     def __init__(self,x,y):
         # Create animation variables
         self.images_right = []
@@ -340,6 +339,11 @@ class Player():
                     else:
                         # if we jumped on top of it, kill the slime
                         Enemy.die()
+                        self.airtime = 0
+                        self.velY = jumpPower
+                        self.jumped = 0
+                        dy = Enemy.rect.top - self.rect.bottom
+                        dy += self.velY
             
             
         # check for collision with lava
@@ -481,7 +485,6 @@ class Enemy(pygame.sprite.Sprite):
         self.y = y
         self.rect = pygame.rect.Rect(x, y, tile_size-15, tile_size-25)
 
-
         # variables
         self.move_dir = 1
         self.move_counter = 0
@@ -495,8 +498,7 @@ class Enemy(pygame.sprite.Sprite):
         self.alive = False
         self.image = self.images[4]
     
-    def update(self):
-    
+    def update(self): 
         if self.alive:
             #increment animation frame
             self.frame += 0.1
@@ -514,12 +516,12 @@ class Enemy(pygame.sprite.Sprite):
                 self.move_counter *= -1
                 
             # update hitbox position
-            self.rect = (self.x+(15/2), self.y+tile_size-25, tile_size-15, tile_size-25)
+            self.rect = pygame.rect.Rect(self.x+(15/2), self.y+tile_size-25, tile_size-15, tile_size-25)
         else:
             # slowly fade out
             self.image.set_alpha(self.alpha)
             self.alpha -=15
-            if self.alpha >255:
+            if self.alpha < 0:
                 # if we are faded out all the way, remove slime
                 blob_group.remove(self)
 
@@ -527,7 +529,7 @@ class Enemy(pygame.sprite.Sprite):
         screen.blit(self.image, (self.x,self.y))
         
         # RENDER HITBOX
-        #pygame.draw.rect(screen,(255,0,0),self.rect,2)
+        # pygame.draw.rect(screen,(255,0,0),self.rect,2)
         
             
 # --- LAVA SPRITE ------------------------- #
@@ -644,6 +646,9 @@ while run:
         game_over = player.update(game_over)
         # if player has died
         if game_over == -1:
+            if player.velY == 0:
+                restart_button.y += ((screenHeight / 2)- restart_button.y) / 7
+                restart_button.rect.y += ((screenHeight / 2)- restart_button.rect.y) / 7
             # restart button pressed
             if restart_button.draw():
                 # reset player
