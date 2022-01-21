@@ -82,18 +82,28 @@ def shake():
     while True:
         yield (0, 0)
         
-# Load world from .json
+# Load data from .json
 def loadData(input): 
-    # File path for .json file
-    data_file= 'world_data.json'
+    try:
+        # File path for .json file
+        data_file= 'world_data.json'
 
-    # Load file
-    with open(data_file, "r") as read_file:
-            data = json.load(read_file)
+        # Load file
+        with open(data_file, "r") as read_file:
+                data = json.load(read_file)
+        returned = data[input]
+    except:
+        data_file= 'world_backup.json'
+
+        # Load file
+        with open(data_file, "r") as read_file:
+                data = json.load(read_file)
+        returned = data[input]
+                
     # return data
-    return data[input]
+    return returned
 
-# Load all world data from .json
+# Load world from .json
 def loadWorld(input):
     spawn_point = loadData(f"spawn{input}")
     spawn_point[0], spawn_point[1] = spawn_point[0]*tile_size, spawn_point[1]*tile_size

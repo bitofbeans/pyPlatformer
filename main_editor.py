@@ -2,7 +2,7 @@ import pygame
 import json
 from os import path
 
-
+data_file= 'world_data.json'
 
 pygame.init()
 
@@ -237,7 +237,7 @@ while run:
 
     #load and save level
     if save_button.draw():
-        data_file= 'world_data.json'
+        
         # Load file
         with open(data_file, "r") as read_file:
             data = json.load(read_file)
@@ -252,7 +252,9 @@ while run:
             world_data = loadData(f"world{level}")
         except:
             # add empty world in place
-            data_file= 'world_data.json'
+            level = 1
+            world_data = loadData(f"world{level}")
+            continue
             # Load file
             with open(data_file, "r") as read_file:
                 data = json.load(read_file)
