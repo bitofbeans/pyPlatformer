@@ -21,6 +21,7 @@ score = 0
 
 # Global Constants
 hideUnknownTiles = False # When true, it hides the tiles that it can not recognize
+renderHitbox = False
 screenWidth = 1000
 screenHeight = 1000
 offset = repeat((0, 0))
@@ -49,8 +50,8 @@ screen = org_screen.copy()
 pygame.display.set_caption('Platformer')
 
 # Image imports
-bg_img = pygame.image.load('assets/deco/sky.png')
-border_img = pygame.image.load('assets/deco/border.png')
+bg_img = pygame.image.load('assets/deco/sky.png').convert_alpha()
+border_img = pygame.image.load('assets/deco/border.png').convert_alpha()
 border_img = pygame.transform.scale(border_img, (screenWidth, 1328.125))
 
 # Define font
@@ -58,13 +59,15 @@ font_score = pygame.font.SysFont('Bauhaus 93', 30)
 font = pygame.font.SysFont('Bauhaus 93', 70)
 
 # Import outline image and outline data
-outline_img = pygame.image.load('assets/tile/outline.png')
+outline_img = pygame.image.load('assets/tile/outline.png').convert_alpha()
 pixelRes= outline_img.get_width()
 scaler = (tile_size / pixelRes)+(0.002*tile_size)
 outline_img = pygame.transform.scale(outline_img,((pixelRes+2)*scaler,(pixelRes+2)*scaler))
 scaler -=0.2
 
 # Load Sounds
+#pygame.mixer.music.load('assets/music/music.wav')
+#pygame.mixer.music.play(-1,0.0,5000)
 coinFX = pygame.mixer.Sound('assets/music/coin2.wav')
 coinFX.set_volume(0.5)
 jumpFX = pygame.mixer.Sound('assets/music/jump2.wav')
@@ -123,6 +126,7 @@ def loadWorld(input):
 def reset_level(world_num):
     # clear sprites
     blob_group.empty()
+    platform_group.empty()
     lava_group.empty()
     exit_group.empty()
     coin_group.empty()
@@ -140,9 +144,9 @@ def reset_level(world_num):
 class Button():
     def __init__(self, x, y, name, scale):
         # set image
-        button = pygame.image.load('assets/ui/'+str(name)+'.png')
+        button = pygame.image.load('assets/ui/'+str(name)+'.png').convert_alpha()
         button = pygame.transform.scale(button, scale)
-        buttonPress = pygame.image.load('assets/ui/'+str(name)+'_press.png')
+        buttonPress = pygame.image.load('assets/ui/'+str(name)+'_press.png').convert_alpha()
         buttonPress = pygame.transform.scale(buttonPress, scale)
         self.images = [button, buttonPress]
         self.image = button                   
@@ -193,7 +197,7 @@ class Player():
         self.images_left = []
         # Load animation frames function
         def imgLoad(img):
-                img_right = pygame.image.load('assets/player/'+ img +'.png')
+                img_right = pygame.image.load('assets/player/'+ img +'.png').convert_alpha()
                 img_right = pygame.transform.scale(img_right,(tile_size*0.75,tile_size*0.75))
                 img_left = pygame.transform.flip(img_right, True, False)
                 self.images_right.append(img_right)
@@ -209,7 +213,7 @@ class Player():
         self.images_deadr = []
         self.images_deadl = []
         for number in range(1,6):
-            img_right = pygame.image.load(f'assets/player/ghost{number}.png')
+            img_right = pygame.image.load(f'assets/player/ghost{number}.png').convert_alpha()
             img_right = pygame.transform.scale(img_right,(tile_size, tile_size))
             img_left = pygame.transform.flip(img_right, True, False)
             self.images_deadr.append(img_right)
@@ -234,9 +238,11 @@ class Player():
             hitFX.play()
             return gameover
         
-        # Set delta x/y
+        # Set local variables
         dx = 0
         dy = 0
+        col_thresh = tile_size * 0.4 # 50 = 20
+        
         # if dead, fly ghost up
         if game_over != 0:
             if game_over == -1:
@@ -272,7 +278,8 @@ class Player():
             # jump
             self.velY = jumpPower
             if self.jumped == 1 or self.airtime == 0:
-                jumpFX.play()
+                if self.airtime > -1:
+                    jumpFX.play()
         if key[pygame.K_UP] == False: self.jumped = 0
        
         # X axis
@@ -389,6 +396,28 @@ class Player():
             # if touching exit, win
             game_over = 1
         
+        # check for collision with platforms
+        for platform in platform_group:
+                # check for collision in x direction
+                if platform.rect.colliderect(self.rect.x+dx, self.y, self.rect.width, self.rect.height):
+                        dx = 0
+                # check for collision in y direction
+                if platform.rect.colliderect(self.rect.x, self.y + dy, self.rect.width, self.rect.height):
+                        # check if below platform
+                        if abs((self.rect.top + dy) - platform.rect.bottom) < col_thresh:
+                            self.velY = 0
+                            dy = platform.rect.bottom - self.rect.top
+                        #check if above platform
+                        elif abs((self.rect.bottom + dy) - platform.rect.top) < col_thresh:
+                            dy = platform.rect.top - self.rect.bottom-1
+                            self.velY = self.velY*0.8
+                            self.airtime = -2
+                        # move with platform
+                        if platform.moveX != 0:
+                            self.x += platform.move_dir
+                        
+                        
+        
         # update player position
         self.x += dx
         self.y += dy
@@ -398,7 +427,8 @@ class Player():
         screen.blit(self.image, (self.x,self.y-3))
         
         # RENDER HITBOX
-        #pygame.draw.rect(screen,WHITE,self.rect,2)
+        if renderHitbox:
+            pygame.draw.rect(screen,WHITE,self.rect,2)
         
         # return the variables and feed it back in
         return game_over
@@ -426,9 +456,9 @@ class World():
       
       # load images
       self.tileTypes = [1,2,3,6]
-      dirt_img = pygame.image.load('assets/tile/dirt.png')
-      grass_img = pygame.image.load('assets/tile/grass.png')
-      err = pygame.image.load('assets/tile/unknown.png')
+      dirt_img = pygame.image.load('assets/tile/dirt.png').convert_alpha()
+      grass_img = pygame.image.load('assets/tile/grass.png').convert_alpha()
+      err = pygame.image.load('assets/tile/unknown.png').convert_alpha()
       self.errorImg = err
       
       # extract tiles from data
@@ -458,6 +488,12 @@ class World():
                       # create enemy 
                       blob = Enemy(col_count * tile_size, row_count * tile_size)
                       blob_group.add(blob)
+                  elif tile == 4:
+                      platform = Platform(col_count * tile_size, row_count * tile_size, 1,0)
+                      platform_group.add(platform)
+                  elif tile == 5:
+                      platform = Platform(col_count * tile_size, row_count * tile_size, 0,1)
+                      platform_group.add(platform)
                   elif tile == 6:
                       # create lava
                       lava = Lava(col_count * tile_size, row_count * tile_size)
@@ -496,10 +532,11 @@ class World():
        
         for tile in self.tile_list:
             # draw each tile
-           screen.blit(tile[0],tile[1])
+            screen.blit(tile[0],tile[1])
            
-           # RENDER HITBOX
-           # pygame.draw.rect(screen,WHITE,tile[1],2)
+            # RENDER HITBOX
+            if renderHitbox:
+                pygame.draw.rect(screen,WHITE,tile[1],2)
 
 # --- ENEMY SPRITE ------------------------- #
 class Enemy(pygame.sprite.Sprite):
@@ -566,9 +603,44 @@ class Enemy(pygame.sprite.Sprite):
         screen.blit(self.image, (self.x,self.y))
         
         # RENDER HITBOX
-        #pygame.draw.rect(screen,(255,0,0),self.rect,2)
+        if renderHitbox:
+            pygame.draw.rect(screen,(255,0,0),self.rect,2)
+
+# --- PLATFORM SPRITE ------------------------- #     
+class Platform(pygame.sprite.Sprite):
+    def __init__(self, x, y, moveX, moveY):
+        # inherit sprite constructor
+        pygame.sprite.Sprite.__init__(self)
+        img = pygame.image.load(f'assets/tile/platform.png').convert_alpha()
+        self.image = pygame.transform.scale(img,(int(tile_size*1.15),int(tile_size*1.15)))
+        self.x = int(x- 1.15)
+        self.y = int(y)
+        self.rect = pygame.rect.Rect(self.x-1.15, self.y, tile_size*1.15, tile_size*0.9)
+        self.move_counter = 0
+        self.move_dir = 1
+        self.moveX = moveX
+        self.moveY = moveY
         
-            
+        
+    def update(self):
+        # move platform
+        self.x += self.move_dir * self.moveX
+        self.y += self.move_dir * self.moveY
+        self.move_counter += 1
+        if self.move_counter > 50:
+            # flip direction after 50 steps past origin
+            self.move_dir *= -1
+            self.move_counter *= -1
+        
+        #update rect
+        self.rect = pygame.rect.Rect(self.x-1.15, self.y, tile_size*1.15, tile_size*0.9)
+        
+        # render inside the update function for more control
+        screen.blit(self.image, (self.x,self.y))
+        #RENDER HITBOX
+        if renderHitbox:
+                pygame.draw.rect(screen,(255,0,0),self.rect,2)
+
 # --- LAVA SPRITE ------------------------- #
 class Lava(pygame.sprite.Sprite):
         def __init__(self, x, y):
@@ -578,7 +650,7 @@ class Lava(pygame.sprite.Sprite):
             # add animation frames
             self.images = []
             for i in range(1,17):
-                img = pygame.image.load(f'assets/tile/lava{i}.png')
+                img = pygame.image.load(f'assets/tile/lava{i}.png').convert_alpha()
                 img = pygame.transform.scale(img,(tile_size,tile_size))
                 self.images.append(img)
             self.image = self.images[0]
@@ -604,7 +676,8 @@ class Lava(pygame.sprite.Sprite):
             #render lava
             screen.blit(self.image, (self.x,self.y))
             #RENDER HITBOX
-            #pygame.draw.rect(screen,(255,0,0),self.rect,2)
+            if renderHitbox:
+                pygame.draw.rect(screen,(255,0,0),self.rect,2)
 
 # --- COIN SPRITE ------------------------- #            
 class Coin(pygame.sprite.Sprite):
@@ -615,7 +688,7 @@ class Coin(pygame.sprite.Sprite):
             # add animation frames
             self.images = []
             for i in range(1,5):
-                img = pygame.image.load(f'assets/tile/coin{i}.png')
+                img = pygame.image.load(f'assets/tile/coin{i}.png').convert_alpha()
                 img = pygame.transform.scale(img,(tile_size,tile_size))
                 self.images.append(img)
             self.image = self.images[0]
@@ -640,7 +713,8 @@ class Coin(pygame.sprite.Sprite):
             #render lava
             screen.blit(self.image, (self.x,self.y))
             #RENDER HITBOX
-            #pygame.draw.rect(screen,(255,0,0),self.rect,2)
+            if renderHitbox:
+                pygame.draw.rect(screen,(255,0,0),self.rect,2)
 
 
 # --- EXIT SPRITE ------------------------- #
@@ -649,17 +723,20 @@ class Exit(pygame.sprite.Sprite):
             # use pygame sprite constructor
             pygame.sprite.Sprite.__init__(self)
             # load image
-            img = pygame.image.load('assets/tile/exit.png')
+            img = pygame.image.load('assets/tile/exit.png').convert_alpha()
             img = pygame.transform.scale(img,(tile_size,tile_size))
             self.image = img
             # position
             self.x = x
             self.y = y
-            self.rect = pygame.rect.Rect(x+(tile_size*0.75/2), y, tile_size*0.75, tile_size)
+            self.rect = pygame.rect.Rect(x+(tile_size*0.75/4), y, tile_size*0.75, tile_size)
             
         def update(self):
             #render exit
             screen.blit(self.image, (self.x,self.y))
+            #RENDER HITBOX
+            if renderHitbox:
+                pygame.draw.rect(screen,(255,0,0),self.rect,2)
             
      
 # --- CREATE SPRITES ----------------------------------------------------------------------------- #
@@ -670,6 +747,7 @@ world_data, spawn_point = loadWorld(world_num)
 player = Player(spawn_point[0], spawn_point[1])
  # sprite groups
 blob_group = pygame.sprite.Group()
+platform_group = pygame.sprite.Group()
 lava_group = pygame.sprite.Group()
 exit_group = pygame.sprite.Group()
 coin_group = pygame.sprite.Group()
@@ -716,6 +794,7 @@ while run:
         #draw tiles
         world.draw()
         # update groups
+        platform_group.update()
         blob_group.update()
         coin_group.update()
         #player movement and rendering
