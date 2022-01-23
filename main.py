@@ -1,11 +1,14 @@
 # --- INITIALIZE ----------------------------------------------------------------------------- #
 # Import modules
 import pygame
+from pygame import mixer
 import json
 from itertools import repeat
 from math import sin, pi
 
 # Initialize pygame and create clock
+pygame.mixer.pre_init(44100, -16, 2, 512)
+mixer.init()
 pygame.init()
 timer = 0
 clock = pygame.time.Clock()
@@ -46,8 +49,6 @@ screen = org_screen.copy()
 pygame.display.set_caption('Platformer')
 
 # Image imports
-sun_img = pygame.image.load('assets/deco/sun.png')
-sun_img = pygame.transform.scale(sun_img, (tile_size*2, tile_size*2))
 bg_img = pygame.image.load('assets/deco/sky.png')
 border_img = pygame.image.load('assets/deco/border.png')
 border_img = pygame.transform.scale(border_img, (screenWidth, 1328.125))
@@ -62,6 +63,15 @@ pixelRes= outline_img.get_width()
 scaler = (tile_size / pixelRes)+(0.002*tile_size)
 outline_img = pygame.transform.scale(outline_img,((pixelRes+2)*scaler,(pixelRes+2)*scaler))
 scaler -=0.2
+
+# Load Sounds
+coinFX = pygame.mixer.Sound('assets/music/coin2.wav')
+coinFX.set_volume(0.5)
+jumpFX = pygame.mixer.Sound('assets/music/jump2.wav')
+jumpFX.set_volume(0.5)
+hitFX = pygame.mixer.Sound('assets/music/hit2.wav')
+hitFX.set_volume(0.5)
+
 # --- FUNCTIONS ----------------------------------------------------------------------------- #
 # draw text 
 def drawText(text, font, color, x, y):
@@ -135,8 +145,7 @@ class Button():
         buttonPress = pygame.image.load('assets/ui/'+str(name)+'_press.png')
         buttonPress = pygame.transform.scale(buttonPress, scale)
         self.images = [button, buttonPress]
-        self.image = button
-        # get image rect
+        self.image = button                   
         self.rect = self.image.get_rect()
         # position
         self.rect.x = x + 7.7
@@ -222,6 +231,7 @@ class Player():
             self.velY = -1
             global offset
             offset = shake()
+            hitFX.play()
             return gameover
         
         # Set delta x/y
@@ -261,6 +271,8 @@ class Player():
         if key[pygame.K_UP] and 1 <= self.jumped <= 6 and self.airtime < 6:
             # jump
             self.velY = jumpPower
+            if self.jumped == 1 or self.airtime == 0:
+                jumpFX.play()
         if key[pygame.K_UP] == False: self.jumped = 0
        
         # X axis
@@ -507,7 +519,7 @@ class Enemy(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.x = x
         self.y = y
-        self.rect = pygame.rect.Rect(x, y, tile_size-15, tile_size-25)
+        self.rect = pygame.rect.Rect(x, y, tile_size*0.7, tile_size*0.5)
 
         # variables
         self.move_dir = 1
@@ -521,6 +533,7 @@ class Enemy(pygame.sprite.Sprite):
         # alive bool = false 
         self.alive = False
         self.image = self.images[4]
+        hitFX.play()
     
     def update(self): 
         if self.alive:
@@ -645,14 +658,13 @@ class Exit(pygame.sprite.Sprite):
             self.rect = pygame.rect.Rect(x+(tile_size*0.75/2), y, tile_size*0.75, tile_size)
             
         def update(self):
-            
             #render exit
             screen.blit(self.image, (self.x,self.y))
             
      
 # --- CREATE SPRITES ----------------------------------------------------------------------------- #
  #load world
-world_num = 7
+world_num = 1
 world_data, spawn_point = loadWorld(world_num)
  #make player
 player = Player(spawn_point[0], spawn_point[1])
@@ -697,7 +709,7 @@ while run:
             main_menu = False
     else: 
         # --- Game Physics --- #
-        screen.blit(sun_img,(tile_size*2,tile_size*2))
+        
         # update lava and exits
         lava_group.update()
         exit_group.update()
@@ -743,6 +755,7 @@ while run:
             coin_collision = pygame.sprite.spritecollide(player, coin_group, True)
             if coin_collision:
                 score += len(coin_collision)
+                coinFX.play()
             score_coin.update()
             drawText('x ' + str(score), font_score, WHITE, tile_size, 17)
             
