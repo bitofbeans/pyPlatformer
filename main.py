@@ -35,7 +35,7 @@ playerWidth = tile_size*0.4 # 50 = 20
 playerHeight = tile_size*0.7 # 50 = 35
 gravity = 0.016*tile_size # 50 = 0.8
 fallMax = 0.3*tile_size  # 50 = 15
-jumpPower = -0.2*tile_size # 50 = -10
+jumpPower = -0.22*tile_size # 50 = -10
 moveSpeed = 0.03*tile_size # 50 = 1.5
 friction = 0.8
 
@@ -409,9 +409,9 @@ class Player():
                             dy = platform.rect.bottom - self.rect.top
                         #check if above platform
                         elif abs((self.rect.bottom + dy) - platform.rect.top) < col_thresh:
-                            dy = platform.rect.top - self.rect.bottom-1
+                            dy = platform.rect.top - self.rect.bottom
                             self.velY = self.velY*0.8
-                            self.airtime = -2
+                            self.airtime = -1
                         # move with platform
                         if platform.moveX != 0:
                             self.x += platform.move_dir
