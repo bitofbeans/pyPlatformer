@@ -8,9 +8,11 @@ Modified from [a platformer tutorial](https://www.youtube.com/playlist?list=PLjc
 All assets by me.
 
 ## How to play
+### Python
 Install and run ``main.py``
-
 Pygame required.
+### Windows 
+Install and run ``main.exe``
 
 ## License
 [MIT License](https://choosealicense.com/licenses/mit/)
