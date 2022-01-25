@@ -5,7 +5,24 @@ from pygame import mixer
 import json
 from itertools import repeat
 from math import sin, pi
+import sys
+import os
 
+# get path for files
+def resource_path(relative_path):
+    try:
+    # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+def loadimage(path):
+    asset = resource_path(path)
+    return pygame.image.load(asset)
+def loadsound(path):
+    asset = resource_path(path)
+    return pygame.mixer.Sound(asset)
 # Initialize pygame and create clock
 pygame.mixer.pre_init(44100, -16, 2, 512)
 mixer.init()
@@ -50,8 +67,8 @@ screen = org_screen.copy()
 pygame.display.set_caption('Platformer')
 
 # Image imports
-bg_img = pygame.image.load('assets/deco/sky.png').convert_alpha()
-border_img = pygame.image.load('assets/deco/border.png').convert_alpha()
+bg_img = loadimage('assets/deco/sky.png').convert_alpha()
+border_img = loadimage('assets/deco/border.png').convert_alpha()
 border_img = pygame.transform.scale(border_img, (screenWidth, 1328.125))
 
 # Define font
@@ -59,7 +76,7 @@ font_score = pygame.font.SysFont('Bauhaus 93', 30)
 font = pygame.font.SysFont('Bauhaus 93', 70)
 
 # Import outline image and outline data
-outline_img = pygame.image.load('assets/tile/outline.png').convert_alpha()
+outline_img = loadimage('assets/tile/outline.png').convert_alpha()
 pixelRes= outline_img.get_width()
 scaler = (tile_size / pixelRes)+(0.002*tile_size)
 outline_img = pygame.transform.scale(outline_img,((pixelRes+2)*scaler,(pixelRes+2)*scaler))
@@ -68,11 +85,11 @@ scaler -=0.2
 # Load Sounds
 #pygame.mixer.music.load('assets/music/music.wav')
 #pygame.mixer.music.play(-1,0.0,5000)
-coinFX = pygame.mixer.Sound('assets/music/coin2.wav')
+coinFX = loadsound('assets/music/coin2.wav')
 coinFX.set_volume(0.5)
-jumpFX = pygame.mixer.Sound('assets/music/jump2.wav')
+jumpFX = loadsound('assets/music/jump2.wav')
 jumpFX.set_volume(0.5)
-hitFX = pygame.mixer.Sound('assets/music/hit2.wav')
+hitFX = loadsound('assets/music/hit2.wav')
 hitFX.set_volume(0.5)
 
 # --- FUNCTIONS ----------------------------------------------------------------------------- #
@@ -144,9 +161,9 @@ def reset_level(world_num):
 class Button():
     def __init__(self, x, y, name, scale):
         # set image
-        button = pygame.image.load('assets/ui/'+str(name)+'.png').convert_alpha()
+        button = loadimage('assets/ui/'+str(name)+'.png').convert_alpha()
         button = pygame.transform.scale(button, scale)
-        buttonPress = pygame.image.load('assets/ui/'+str(name)+'_press.png').convert_alpha()
+        buttonPress = loadimage('assets/ui/'+str(name)+'_press.png').convert_alpha()
         buttonPress = pygame.transform.scale(buttonPress, scale)
         self.images = [button, buttonPress]
         self.image = button                   
@@ -197,7 +214,7 @@ class Player():
         self.images_left = []
         # Load animation frames function
         def imgLoad(img):
-                img_right = pygame.image.load('assets/player/'+ img +'.png').convert_alpha()
+                img_right = loadimage('assets/player/'+ img +'.png').convert_alpha()
                 img_right = pygame.transform.scale(img_right,(tile_size*0.75,tile_size*0.75))
                 img_left = pygame.transform.flip(img_right, True, False)
                 self.images_right.append(img_right)
@@ -213,7 +230,7 @@ class Player():
         self.images_deadr = []
         self.images_deadl = []
         for number in range(1,6):
-            img_right = pygame.image.load(f'assets/player/ghost{number}.png').convert_alpha()
+            img_right = loadimage(f'assets/player/ghost{number}.png').convert_alpha()
             img_right = pygame.transform.scale(img_right,(tile_size, tile_size))
             img_left = pygame.transform.flip(img_right, True, False)
             self.images_deadr.append(img_right)
@@ -456,9 +473,9 @@ class World():
       
       # load images
       self.tileTypes = [1,2,3,6]
-      dirt_img = pygame.image.load('assets/tile/dirt.png').convert_alpha()
-      grass_img = pygame.image.load('assets/tile/grass.png').convert_alpha()
-      err = pygame.image.load('assets/tile/unknown.png').convert_alpha()
+      dirt_img = loadimage('assets/tile/dirt.png').convert_alpha()
+      grass_img = loadimage('assets/tile/grass.png').convert_alpha()
+      err = loadimage('assets/tile/unknown.png').convert_alpha()
       self.errorImg = err
       
       # extract tiles from data
@@ -547,7 +564,7 @@ class Enemy(pygame.sprite.Sprite):
         # add animation frames
         self.images = []
         for i in range(0,5):
-            img = pygame.image.load(f'assets/enemy/blob{i}.png').convert()
+            img = loadimage(f'assets/enemy/blob{i}.png').convert()
             img = pygame.transform.scale(img,(tile_size,tile_size))
             self.images.append(img)
         self.image = self.images[0]
@@ -611,7 +628,7 @@ class Platform(pygame.sprite.Sprite):
     def __init__(self, x, y, moveX, moveY):
         # inherit sprite constructor
         pygame.sprite.Sprite.__init__(self)
-        img = pygame.image.load(f'assets/tile/platform.png').convert_alpha()
+        img = loadimage(f'assets/tile/platform.png').convert_alpha()
         self.image = pygame.transform.scale(img,(int(tile_size*1.15),int(tile_size*1.15)))
         self.x = int(x- 1.15)
         self.y = int(y)
@@ -650,7 +667,7 @@ class Lava(pygame.sprite.Sprite):
             # add animation frames
             self.images = []
             for i in range(1,17):
-                img = pygame.image.load(f'assets/tile/lava{i}.png').convert_alpha()
+                img = loadimage(f'assets/tile/lava{i}.png').convert_alpha()
                 img = pygame.transform.scale(img,(tile_size,tile_size))
                 self.images.append(img)
             self.image = self.images[0]
@@ -688,7 +705,7 @@ class Coin(pygame.sprite.Sprite):
             # add animation frames
             self.images = []
             for i in range(1,5):
-                img = pygame.image.load(f'assets/tile/coin{i}.png').convert_alpha()
+                img = loadimage(f'assets/tile/coin{i}.png').convert_alpha()
                 img = pygame.transform.scale(img,(tile_size,tile_size))
                 self.images.append(img)
             self.image = self.images[0]
@@ -723,7 +740,7 @@ class Exit(pygame.sprite.Sprite):
             # use pygame sprite constructor
             pygame.sprite.Sprite.__init__(self)
             # load image
-            img = pygame.image.load('assets/tile/exit.png').convert_alpha()
+            img = loadimage('assets/tile/exit.png').convert_alpha()
             img = pygame.transform.scale(img,(tile_size,tile_size))
             self.image = img
             # position

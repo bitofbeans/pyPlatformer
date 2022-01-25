@@ -1,6 +1,20 @@
 import pygame
 import json
-from os import path
+import sys
+import os
+
+# get path for files
+def resource_path(relative_path):
+    try:
+    # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+def loadImage(path):
+    asset = resource_path(path)
+    return pygame.image.load(asset)
 
 data_file= 'world_data.json'
 
@@ -21,13 +35,13 @@ pygame.display.set_caption('Level Editor')
 
 
 #load images
-sun_img = pygame.image.load('assets/deco/sun.png')
+sun_img = loadImage('assets/deco/sun.png')
 sun_img = pygame.transform.scale(sun_img, (tile_size, tile_size))
-bg_img = pygame.image.load('assets/deco/sky.png')
+bg_img = loadImage('assets/deco/sky.png')
 bg_img = pygame.transform.scale(bg_img, (screen_width, screen_height - margin))
-dirt_img = pygame.image.load('assets/tile/dirt.png')
-grass_img = pygame.image.load('assets/tile/grass.png')
-blob_img = pygame.image.load('assets/enemy/blob0.png')
+dirt_img = loadImage('assets/tile/dirt.png')
+grass_img = loadImage('assets/tile/grass.png')
+blob_img = loadImage('assets/enemy/blob0.png')
 platform_x_img = pygame.image.load('assets/tile/platform_x.png')
 platform_y_img = pygame.image.load('assets/tile/platform_y.png')
 lava_img = pygame.image.load('assets/tile/lava1.png')
